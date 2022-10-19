@@ -1,100 +1,99 @@
-/**
- * This is the entrypoint file of the application. It communicates the
- * important features of this microfrontend to the app shell. It
- * connects the app shell to the React application(s) that make up this
- * microfrontend.
- */
+import { registerBreadcrumbs, defineConfigSchema, getAsyncLifecycle } from '@openmrs/esm-framework';
+import { FormManager } from './patient-registration/form-manager';
+import { esmPatientRegistrationSchema } from './config-schema';
+import { moduleName, patientRegistration } from './constants';
+import { setupOffline } from './offline';
 
-import { getAsyncLifecycle, defineConfigSchema } from "@openmrs/esm-framework";
-import { configSchema } from "./config-schema";
-
-/**
- * This tells the app shell the version of this app. We inject this variable
- * via the Webpack DefinePlugin, so first, in order to keep TypeScript happy,
- * we need to tell it that this is an available variable in this scope. At
- * build-time the __VERSION__ variable is replaced with the version from
- * package.json
- */
 declare var __VERSION__: string;
+// __VERSION__ is replaced by Webpack with the version from package.json
 const version = __VERSION__;
 
-/**
- * This tells the app shell how to obtain translation files: that they
- * are JSON files in the directory `../translations` (which you should
- * see in the directory structure).
- */
-const importTranslation = require.context(
-  "../translations",
-  false,
-  /.json$/,
-  "lazy"
-);
+const importTranslation = require.context('../translations', false, /.json$/, 'lazy');
 
-/**
- * This tells the app shell what versions of what OpenMRS backend modules
- * are expected. Warnings will appear if suitable modules are not
- * installed. The keys are the part of the module name after
- * `openmrs-module-`; e.g., `openmrs-module-fhir2` becomes `fhir2`.
- */
 const backendDependencies = {
-  fhir2: "^1.2.0",
-  "webservices.rest": "^2.2.0",
+  'webservices.rest': '^2.24.0',
 };
 
-/**
- * This function performs any setup that should happen at microfrontend
- * load-time (such as defining the config schema) and then returns an
- * object which describes how the React application(s) should be
- * rendered.
- *
- * In this example, our return object contains a single page definition.
- * It tells the app shell that the default export of `hello.tsx`
- * should be rendered when the route matches `hello`. The full route
- * will be `openmrsSpaBase() + 'hello'`, which is usually
- * `/openmrs/spa/hello`.
- */
 function setupOpenMRS() {
-  const moduleName = "@openmrs/esm-template-app";
-
   const options = {
-    featureName: "hello-world",
+    featureName: 'Patient Registration',
     moduleName,
   };
 
-  defineConfigSchema(moduleName, configSchema);
+  defineConfigSchema(moduleName, esmPatientRegistrationSchema);
+
+  registerBreadcrumbs([
+    {
+      path: `${window.spaBase}/${patientRegistration}`,
+      title: 'Patient Registration',
+      parent: `${window.spaBase}/home`,
+    },
+  ]);
+
+  setupOffline();
 
   return {
     pages: [
       {
-        load: getAsyncLifecycle(() => import("./hello"), options),
-        route: "hello",
+        load: getAsyncLifecycle(() => import('./root.component'), options),
+        route: 'patient-registration',
+        online: {
+          savePatientForm: FormManager.savePatientFormOnline,
+          isOffline: false,
+        },
+        offline: {
+          savePatientForm: FormManager.savePatientFormOffline,
+          isOffline: true,
+        },
       },
+      // TODO: Check in with Manuel about whether this bit is still required
+      // {
+      //   load: getAsyncLifecycle(() => import('./root.component'), {
+      //     featureName: 'edit-patient-details-form',
+      //     moduleName,
+      //   }),
+      //   route: /patient\-registration\/patient\/([a-zA-Z0-9\-]+)\/edit/,
+      //   online: {
+      //     savePatientForm: FormManager.savePatientFormOnline,
+      //   },
+      //   offline: {
+      //     savePatientForm: FormManager.savePatientFormOffline,
+      //   },
+      // },
     ],
     extensions: [
       {
-        name: "Red box",
-        load: getAsyncLifecycle(
-          () => import("./boxes/extensions/red-box"),
-          options
-        ),
-        slot: "Boxes",
+        id: 'add-patient-action',
+        slot: 'top-nav-actions-slot',
+        load: getAsyncLifecycle(() => import('./add-patient-link'), options),
+        online: true,
+        offline: true,
       },
       {
-        name: "Blue box",
-        load: getAsyncLifecycle(
-          () => import("./boxes/extensions/blue-box"),
-          options
-        ),
-        slot: "Boxes",
-        // same as `slots: ["Boxes"],`
+        id: 'cancel-patient-edit-modal',
+        load: getAsyncLifecycle(() => import('./widgets/cancel-patient-edit.component'), options),
+        online: true,
+        offline: true,
       },
       {
-        name: "Brand box",
-        load: getAsyncLifecycle(
-          () => import("./boxes/extensions/brand-box"),
-          options
-        ),
-        slot: "Boxes",
+        id: 'patient-photo-widget',
+        slot: 'patient-photo-slot',
+        load: getAsyncLifecycle(() => import('./widgets/display-photo.component'), options),
+        online: true,
+        offline: true,
+      },
+      {
+        id: 'edit-patient-details-button',
+        slot: 'patient-search-actions-slot',
+        load: getAsyncLifecycle(() => import('./widgets/edit-patient-details-button.component'), options),
+        online: true,
+        offline: true,
+      },
+      {
+        id: 'delete-identifier-confirmation-modal',
+        load: getAsyncLifecycle(() => import('./widgets/delete-identifier-confirmation-modal'), options),
+        online: true,
+        offline: true,
       },
     ],
   };
